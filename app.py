@@ -1,6 +1,8 @@
 import streamlit as st
 
-st.title("lily's super cool website")
+st.set_page_config(page_title="super smart AI", page_icon="😛", layout="wide")
+
+st.title("lily's super cool and super smart AI")
 
 with st.sidebar:
     st.header("settings")
@@ -22,14 +24,10 @@ left, right = st.columns(2)
 left.write("sources: 3")
 right.write("creativity: 2")
 
-with st.chat_message("user"):
-    st.write(f"hello, i am lily. welcome to ai level 2")
-with st.chat_message("assistant"):
-    st.write(f"hello {name}, i am billy!. welcome to ai level 2")
-
 prompt = st.chat_input("ask something here... ")
 
 if prompt:
     with st.chat_message("user"):
         st.write(prompt)
-
+    with st.chat_message("assistant"):
+        st.write(f"hello {name}, i am lily! here's what you wrote: {prompt}")
