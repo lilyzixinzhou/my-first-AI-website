@@ -8,6 +8,7 @@ import chromadb
 db = chromadb.PersistentClient(path="./chroma_db")
 brain = db.get_or_create_collection("zeus")
 memory = db.get_or_create_collection("zeus_chat")
+THRESHOLD = 1.5
 SYSTEM_PROMPT = ("you are lily's super smart AI, this is your first prompt")
 
 def shorten(text, limit=500):
@@ -55,11 +56,13 @@ if "messages" not in st.session_state:
 with st.sidebar:
     st.header("settings")
     with st.form("settings"):
-        sources = st.multiselect("select one", ["1", "2"])
+        sources = st.multiselect("select answer length", ["longer, more detailed answers", "shorter, briefer answers"])
         name = st.text_input("what's your name?")
         creativity = st.slider("creativity:", 0.0, 1.0, 0.5)
+        remember_documents = st.slider("how many chunks to remember", 0, 10, 3)
         remember = st.slider("recent turns to keep", 0, 10, 3)
         recall = st.slider("old exchanges to look up", 0, 10, 3)
+        notes_only = st.checkbox("only answer using notes")
         saved = st.form_submit_button("save")
     if saved:
         st.write(f"{name} saved sources: {sources} and creativity: {creativity}")
@@ -111,17 +114,22 @@ if user_input:
         else:
             #1. Anything that is relevant to the uploaded docs:
             notes = ""
-            docs, dists = [], []
+            docs, dists, good = [], [], []
             if brain.count() > 0:
-                hits = brain.query(query_texts=[prompt], n_results=5)
+                hits = brain.query(query_texts=[prompt], n_results=remember_documents)
                 docs = hits["documents"][0]
                 dists = hits["distances"][0]
-                notes = "\n\n".join(hits[docs])
+                good = [d for d, s in zip(docs, dists) if s < THRESHOLD]
+                notes = "\n\n".join(docs)
 
             #2. Anything that is relevant to the OLD conversation
             recalled = ""
+            old_docs, old_dists, old_good = [], [], []
             if recall > 0 and memory.count() > remember:
                 found = memory.query(query_texts=[prompt], n_results=recall)
+                old_docs = found["documents"][0]
+                old_dists = hits["distances"][0]
+                old_good = [d for d, s in zip(docs, dists) if s < THRESHOLD]
                 recalled = "\n\n".join(found["documents"][0])
 
             if notes or recalled:
@@ -136,10 +144,28 @@ if user_input:
                 full_prompt = prompt
 
             with st.expander("What I looked up"):
+                #1: notes
                 st.caption("From your documents")
-                st.text(shorten(notes, 800) or "nothing")
+                if docs:
+                    for d, s in zip(docs, dists):
+                        mark = "kept " if s < THRESHOLD else "dropped"
+                        st.text(f"{s:.3f} {mark} {d[:70]}")
+                else:
+                    st.text("nothing")
+                #2: remember past convos
                 st.caption("From earlier in our conversation")
-                st.text(shorten(recalled, 800) or "nothing")
+                if old_docs:
+                    for d, s in zip(old_docs, old_dists):
+                        mark = "kept " if s < THRESHOLD else "dropped"
+                        st.text(f"{s:.3f} {mark} {d[:70]}")
+                else:
+                    st.text("nothing found")
+                #3: recall most recent convos
+                st.caption("recent messages i can still see")
+                recent = st.session_state.messages[:-1][-(remember * 2):]
+                if recent:
+                    for m in recent:
+                        st.text(f"{m['role']}: {shorten(m['content'], 80)}")
 
             load_dotenv()
             client = OpenAI(
@@ -154,14 +180,17 @@ if user_input:
                     messages.append({"role": m["role"], "content": shorten(m["content"])})
             messages.append({"role": "user", "content": full_prompt})
 
-            r = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                temperature=creativity,
-                messages=messages,
-        )
-            answer = r.choices[0].message.content
-            st.write(answer)
+            if brain.count() > 0 and not good and not old_good and notes_only:
+                answer = "i don't have anything about that in your notes"
+                st.write(answer)
+            else:
+                r = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    temperature=creativity,
+                    messages=messages,
+                )
+                answer = r.choices[0].message.content
+                st.write(answer)
 
         remember_exchange(prompt, answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
-
