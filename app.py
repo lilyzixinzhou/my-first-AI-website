@@ -8,8 +8,21 @@ import chromadb
 db = chromadb.PersistentClient(path="./chroma_db")
 brain = db.get_or_create_collection("zeus")
 memory = db.get_or_create_collection("zeus_chat")
-THRESHOLD = 1.5
-SYSTEM_PROMPT = ("you are lily's super smart AI, this is your first prompt")
+
+def anchor_prompt(notes, recalled, questions):
+    return f"""ROLE
+
+CONTEXT
+{notes if notes else "(nothing found)"}
+
+EARLIER
+{recalled if recalled else "(nothing)"}
+
+RULES
+
+"""
+
+SYSTEM_PROMPT = ("you are lily's super smart AI.")
 
 def shorten(text, limit=500):
     return text if len(text) <= limit else text[:limit] + " ... rest removed to keep it short"
@@ -36,6 +49,7 @@ def store_document(file):
     prefix = file.name.replace(" ", "_")
     brain.add(
         documents=chunks,
+        metadatas=[{"source": file.name, "chunk": i} for i in range(len(chunks))],
         ids=[f"{prefix}_chunk{i}" for i in range(len(chunks))],
     )
     return len(text), len(chunks)
@@ -56,9 +70,11 @@ if "messages" not in st.session_state:
 with st.sidebar:
     st.header("settings")
     with st.form("settings"):
+        SYSTEM_PROMPT+= st.text_input("save custom instructions to the system prompt")
         sources = st.multiselect("select answer length", ["longer, more detailed answers", "shorter, briefer answers"])
         name = st.text_input("what's your name?")
         creativity = st.slider("creativity:", 0.0, 1.0, 0.5)
+        THRESHOLD = st.slider("threshold for accuracy:", 0.0, 3.0, 0.0)
         remember_documents = st.slider("how many chunks to remember", 0, 10, 3)
         remember = st.slider("recent turns to keep", 0, 10, 3)
         recall = st.slider("old exchanges to look up", 0, 10, 3)
@@ -114,12 +130,16 @@ if user_input:
         else:
             #1. Anything that is relevant to the uploaded docs:
             notes = ""
-            docs, dists, good = [], [], []
+            docs, dists, good, metas, used_sources = [], [], [], [], []
             if brain.count() > 0:
                 hits = brain.query(query_texts=[prompt], n_results=remember_documents)
                 docs = hits["documents"][0]
                 dists = hits["distances"][0]
-                good = [d for d, s in zip(docs, dists) if s < THRESHOLD]
+                metas = hits["metadatas"][0]
+                for d, s, m, in zip(docs, dists, metas):
+                    if s < THRESHOLD:
+                        good.append(d)
+                        used_sources.append(f"{m['source']} (chunk{m['chunk']})")
                 notes = "\n\n".join(docs)
 
             #2. Anything that is relevant to the OLD conversation
@@ -129,17 +149,11 @@ if user_input:
                 found = memory.query(query_texts=[prompt], n_results=recall)
                 old_docs = found["documents"][0]
                 old_dists = hits["distances"][0]
-                old_good = [d for d, s in zip(docs, dists) if s < THRESHOLD]
+                old_good = [d for d, s in zip(old_docs, old_dists) if s < THRESHOLD]
                 recalled = "\n\n".join(found["documents"][0])
 
             if notes or recalled:
-                full_prompt = (f"Answer using only the notes below. "
-                               f"If the notes don't contain the answer, say so"
-                               f"The notes could contain some irrelevant information"
-                               f"{notes}"
-                               f"Things we talked about earlier:"
-                               f"{recalled}"
-                               f"User question: {prompt}")
+                full_prompt = anchor_prompt(notes, recalled, prompt)
             else:
                 full_prompt = prompt
 
@@ -147,9 +161,9 @@ if user_input:
                 #1: notes
                 st.caption("From your documents")
                 if docs:
-                    for d, s in zip(docs, dists):
+                    for d, s, m in zip(docs, dists, metas):
                         mark = "kept " if s < THRESHOLD else "dropped"
-                        st.text(f"{s:.3f} {mark} {d[:70]}")
+                        st.text(f"{s:.3f} {mark} {m['source']} {d[:70]}")
                 else:
                     st.text("nothing")
                 #2: remember past convos
@@ -191,6 +205,8 @@ if user_input:
                 )
                 answer = r.choices[0].message.content
                 st.write(answer)
+                if used_sources:
+                    st.caption("sources: " + ", ".join(sorted(set(used_sources))))
 
         remember_exchange(prompt, answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
