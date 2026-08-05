@@ -55,6 +55,7 @@ if "messages" not in st.session_state:
 with st.sidebar:
     st.header("settings")
     with st.form("settings"):
+        sources = st.multiselect("select one", ["1", "2"])
         name = st.text_input("what's your name?")
         creativity = st.slider("creativity:", 0.0, 1.0, 0.5)
         remember = st.slider("recent turns to keep", 0, 10, 3)
