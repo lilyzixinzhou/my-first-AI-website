@@ -104,7 +104,7 @@ if user_input:
         {"role": "user", "content": prompt if prompt else f"attached: {prompt_file.name}"}
     )
     with st.chat_message("assistant"):
-        elif not prompt:
+        if not prompt:
             answer = "Saved. Now ask me something about it!"
             st.write(answer)
         else:
