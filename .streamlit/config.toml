@@ -1,0 +1,16 @@
+[theme]
+
+primaryColor = "#796858"
+
+backgroundColor = "#fffbe1"
+
+secondaryBackgroundColor = "#f6d8d6"
+
+borderColor = "#796858"
+
+textColor = "#796858"
+
+base = "light"
+
+headingFont = "'Instrument Serif':https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap"
+

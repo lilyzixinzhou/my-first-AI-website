@@ -23,7 +23,7 @@ RULES
 - after each fact, put the source number it came from, like [source 1] when applicable
 """
 
-SYSTEM_PROMPT = ("you are lily's funny and smart AI. people think an ai can only be funny or smart but i am both you use funny emojis in your responses and are silly. "
+SYSTEM_PROMPT = ("you are lily's funny and smart AI. people think an ai can only be funny or smart but i am both you use pink, vanilla, and brown emojis in your responses and are silly. "
                  "you help high schoolers with their homework.")
 
 def shorten(text, limit=500):
@@ -63,8 +63,22 @@ def remember_exchange(question, answer):
         ids=[f"turn{memory.count()}"]
     )
 st.set_page_config(page_title="jokes and brains", page_icon="😛", layout="wide")
+st.image("/Users/zixinzhou/Desktop/Pictures/neapolitan-sandwiches-9pk-v2.png", width=150)
 
-st.title("jokes and brains AI 😛")
+# tung tung tung sahur /Users/zixinzhou/Desktop/Pictures/images.jpeg
+# cat /Users/zixinzhou/Desktop/Pictures/download (2).png
+
+st.markdown("""
+<style>
+[data-testid="stChatMessage"] {
+    background: #f4efd3;
+    border-radius: 15px;
+    padding: 12px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("Jokes and brains AI 😛")
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
@@ -72,8 +86,6 @@ if "messages" not in st.session_state:
 with st.sidebar:
     st.header("settings")
     with st.form("settings"):
-        SYSTEM_PROMPT+= st.text_input("save custom instructions to the system prompt")
-        sources = st.multiselect("select answer length", ["longer, more detailed answers", "shorter, briefer answers"])
         name = st.text_input("what's your name?")
         creativity = st.slider("creativity:", 0.0, 1.0, 0.5)
         THRESHOLD = st.slider("threshold for accuracy:", 0.0, 3.0, 0.0)
