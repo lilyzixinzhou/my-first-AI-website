@@ -19,10 +19,12 @@ EARLIER
 {recalled if recalled else "(nothing)"}
 
 RULES
-
+- use the context above if it exists
+- after each fact, put the source number it came from, like [source 1] when applicable
 """
 
-SYSTEM_PROMPT = ("you are lily's super smart AI.")
+SYSTEM_PROMPT = ("you are lily's funny and smart AI. people think an ai can only be funny or smart but i am both you use funny emojis in your responses and are silly. "
+                 "you help high schoolers with their homework.")
 
 def shorten(text, limit=500):
     return text if len(text) <= limit else text[:limit] + " ... rest removed to keep it short"
@@ -60,9 +62,9 @@ def remember_exchange(question, answer):
         documents=[f"Question: {question}\n Answer: {shorten(answer)}"],
         ids=[f"turn{memory.count()}"]
     )
-st.set_page_config(page_title="lily's super smart AI", page_icon="😛", layout="wide")
+st.set_page_config(page_title="jokes and brains", page_icon="😛", layout="wide")
 
-st.title("lily's super smart AI 🤓😛")
+st.title("jokes and brains AI 😛")
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
@@ -140,7 +142,7 @@ if user_input:
                     if s < THRESHOLD:
                         good.append(d)
                         used_sources.append(f"{m['source']} (chunk{m['chunk']})")
-                notes = "\n\n".join(docs)
+                notes = "\n\n".join(f"[source {i+1}] {d}" for i, d in enumerate(good))
 
             #2. Anything that is relevant to the OLD conversation
             recalled = ""
@@ -148,7 +150,7 @@ if user_input:
             if recall > 0 and memory.count() > remember:
                 found = memory.query(query_texts=[prompt], n_results=recall)
                 old_docs = found["documents"][0]
-                old_dists = hits["distances"][0]
+                old_dists = found["distances"][0]
                 old_good = [d for d, s in zip(old_docs, old_dists) if s < THRESHOLD]
                 recalled = "\n\n".join(found["documents"][0])
 
@@ -206,7 +208,7 @@ if user_input:
                 answer = r.choices[0].message.content
                 st.write(answer)
                 if used_sources:
-                    st.caption("sources: " + ", ".join(sorted(set(used_sources))))
-
+                    for i, src in enumerate(used_sources):
+                        st.caption(f"source {i+1}: {src}")
         remember_exchange(prompt, answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
