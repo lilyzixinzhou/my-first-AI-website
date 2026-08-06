@@ -147,12 +147,15 @@ if user_input:
             #2. Anything that is relevant to the OLD conversation
             recalled = ""
             old_docs, old_dists, old_good = [], [], []
-            if recall > 0 and memory.count() > remember:
+            if recall > 0 and memory.count() > remember and not notes_only:
                 found = memory.query(query_texts=[prompt], n_results=recall)
                 old_docs = found["documents"][0]
                 old_dists = found["distances"][0]
                 old_good = [d for d, s in zip(old_docs, old_dists) if s < THRESHOLD]
                 recalled = "\n\n".join(found["documents"][0])
+
+            if notes_only:
+                recalled = ""
 
             if notes or recalled:
                 full_prompt = anchor_prompt(notes, recalled, prompt)
@@ -189,13 +192,31 @@ if user_input:
                 api_key = os.environ.get("AI_TOKEN") or st.secrets["AI_TOKEN"],
             )
             #3. The last few turns, word for word bu trimmed
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-            past = st.session_state.messages[:-1]
-            if remember > 0:
-                for m in past[-(remember * 2):]:
-                    messages.append({"role": m["role"], "content": shorten(m["content"])})
-            messages.append({"role": "user", "content": full_prompt})
+            system = SYSTEM_PROMPT
 
+            if notes_only:
+                system += """
+            You must ONLY answer using the provided notes/context.
+            Do not use your own knowledge.
+            Do not use previous conversation.
+            Do not guess.
+
+            If the answer is not contained in the notes, reply:
+            "I don't have anything about that in your notes."
+            """
+
+            messages = [{"role": "system", "content": system}]
+
+            if not notes_only:
+                past = st.session_state.messages[:-1]
+                if remember > 0:
+                    for m in past[-(remember * 2):]:
+                        messages.append({
+                            "role": m["role"],
+                            "content": shorten(m["content"])
+                        })
+
+            messages.append({"role": "user", "content": full_prompt})
             if brain.count() > 0 and not good and not old_good and notes_only:
                 answer = "i don't have anything about that in your notes"
                 st.write(answer)
